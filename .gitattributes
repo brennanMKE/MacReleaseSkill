@@ -1,0 +1,18 @@
+# Normalize line endings; keep shell scripts LF so they stay executable on macOS.
+* text=auto eol=lf
+
+*.sh       text eol=lf
+*.md       text
+*.xml      text
+*.plist    text
+*.xcconfig text
+
+# Binary assets — never diff or line-normalize.
+*.dmg  binary
+*.icns binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.pdf  binary
+*.p8   binary
+*.key  binary

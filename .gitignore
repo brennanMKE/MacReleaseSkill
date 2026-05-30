@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor / temp
+*.swp
+*.swo
+*~
+*.bak
+*.tmp
+
+# Release artifacts (never commit signed/notarized output or secrets)
+build/
+dist/
+*.dmg
+*.xcarchive
+exportOptions.plist
+Active.xcconfig
+
+# Sparkle signing keys — private key must never be committed
+*.key
+*-sparkle.key
+*-sparkle.pub
+
+# App Store Connect API keys
+AuthKey_*.p8

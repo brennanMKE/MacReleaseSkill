@@ -1,0 +1,25 @@
+// Build.xcconfig — toolchain, platform, and signing settings shared by the app.
+//
+// Keep DEVELOPMENT_TEAM here so the preflight and release scripts can read it
+// from one place. Automatic signing + a Developer ID Application certificate in
+// the login keychain is what notarization requires.
+
+SWIFT_VERSION = 6.0
+SWIFT_APPROACHABLE_CONCURRENCY = YES
+SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor
+
+SDKROOT = macosx
+MACOSX_DEPLOYMENT_TARGET = 14.0
+SUPPORTED_PLATFORMS = macosx
+SUPPORTS_MACCATALYST = NO
+
+// App Sandbox: enable (YES) if you intend to also ship on the Mac App Store, or
+// for least-privilege. Direct Developer-ID distribution does not require it.
+ENABLE_APP_SANDBOX = NO
+
+// Hardened Runtime is REQUIRED for notarization. Xcode enables it by default
+// for new macOS app targets; if yours predates that, set it explicitly:
+ENABLE_HARDENED_RUNTIME = YES
+
+CODE_SIGN_STYLE = Automatic
+DEVELOPMENT_TEAM = XXXXXXXXXX

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  appcast.xml — the Sparkle update feed. Host this at SU_FEED_URL.
+
+  Per release, prepend a new <item> (newest first). The three values that MUST
+  be right:
+    sparkle:version              = the YYYYMMDD build number printed by release.sh
+                                   (CFBundleVersion — the integer Sparkle compares)
+    sparkle:shortVersionString   = the marketing version (MARKETING_VERSION)
+    sparkle:edSignature          = output of sign_update over the DMG
+    length                       = the DMG's byte count (sign_update prints it)
+
+  See references/appcast.md and references/sparkle.md.
+-->
+<rss version="2.0"
+     xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"
+     xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>MyApp</title>
+    <link>https://updates.example.com/appcast.xml</link>
+    <description>Most recent updates to MyApp.</description>
+    <language>en</language>
+
+    <item>
+      <title>1.0.0</title>
+      <pubDate>Mon, 01 Jan 2026 00:00:00 +0000</pubDate>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h2>What's new in 1.0.0</h2>
+        <ul>
+          <li>First public release.</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://updates.example.com/downloads/MyApp-1.0.0.dmg"
+        sparkle:version="20260101"
+        sparkle:shortVersionString="1.0.0"
+        sparkle:edSignature="REPLACE_WITH_sign_update_OUTPUT"
+        length="0"
+        type="application/octet-stream" />
+    </item>
+
+  </channel>
+</rss>
