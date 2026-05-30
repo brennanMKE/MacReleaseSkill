@@ -69,6 +69,52 @@ grep -n 'MARKETING_VERSION\|CURRENT_PROJECT_VERSION' MyApp.xcodeproj/project.pbx
 # (should print nothing)
 ```
 
+## The drift trap: "You're up to date" while running an old version
+
+This is the failure the version-consistency guards exist to prevent. It happens
+because **Sparkle reads two different fields for two different jobs**:
+
+- **The update decision** uses `CFBundleVersion` (`sparkle:version`). Sparkle
+  takes the newest appcast item and compares its `sparkle:version` to the host
+  app's `CFBundleVersion`. If host ≥ feed, it reports "no update."
+- **The dialog text** uses the marketing strings: "newest available" =
+  the item's `sparkle:shortVersionString`; "currently running" = the host's
+  `CFBundleShortVersionString`.
+
+So two independent mistakes combine into one baffling screenshot:
+
+1. **`MARKETING_VERSION` not bumped before archive** → the DMG named "1.0.3"
+   actually carries `CFBundleShortVersionString = 1.0.2`. The app reports itself
+   as the *old* version.
+2. **A hand-typed `sparkle:version` one off from the DMG's real
+   `CFBundleVersion`** → the feed advertises build `20260521` but the DMG is
+   `20260522`. The installed app's build number is *higher* than the feed.
+
+Result: Sparkle compares build numbers (host `20260522` ≥ feed `20260521`),
+decides "up to date," and prints "1.0.3 is newest, you're running 1.0.2" — a
+self-contradiction the user can't act on.
+
+### Three guards, defense in depth
+
+- **`release.sh` version-consistency gate** (hard fail, before notarization):
+  the *built bundle's* `CFBundleShortVersionString` must equal `MARKETING_VERSION`
+  and its `CFBundleVersion` must equal the injected build number. Catches the
+  un-bumped marketing version and a pbxproj override shadowing the xcconfig
+  before anything ships.
+- **`appcast-item.sh`** (the only correct way to author an item): reads
+  `sparkle:version` / `sparkle:shortVersionString` / `length` / `edSignature`
+  **from the DMG itself** (mounts it, reads the bundle's Info.plist, computes the
+  byte count, runs `sign_update`). Nothing is hand-typed, so the feed can't drift
+  from the artifact. `release.sh` runs it automatically at the end of a release.
+- **`preflight.sh` gates**: (1) a bump gate that fails if `MARKETING_VERSION`
+  isn't strictly greater than the newest version already in the appcast; (2) an
+  appcast↔DMG consistency gate that mounts the newest item's local DMG and warns
+  if its real version fields or byte length disagree with the advertised
+  attributes.
+
+**Never hand-type appcast version attributes.** Run `appcast-item.sh` against the
+DMG and paste its output. See `appcast.md`.
+
 ## Info.plist wiring
 
 The Info.plist references the build settings so the values flow from one place:

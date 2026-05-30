@@ -22,7 +22,7 @@ mac-release/
     troubleshooting.md        Gatekeeper / notarization / Sparkle failures
   templates/                copy into your app, edit the CONFIG block
     preflight.sh  release.sh  verify-dmg.sh  tag-release.sh
-    setup-notary.sh  deploy-website.sh
+    appcast-item.sh  setup-notary.sh  deploy-website.sh
     App.xcconfig  Build.xcconfig  appcast.xml  RELEASE.md
 ```
 

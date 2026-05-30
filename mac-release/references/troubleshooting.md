@@ -52,6 +52,28 @@ Keep that ordering if you modify the script.
 
 ## Sparkle: update not offered
 
+**"You're up to date" but it names a newer version than the one it says you're
+running** (e.g. "1.0.3 is newest, you are running 1.0.2").
+The self-contradiction means two fields drifted from the artifact. Sparkle
+decides on `CFBundleVersion` but prints the marketing strings, so this appears
+when the shipped DMG (a) was archived without bumping `MARKETING_VERSION` (its
+`CFBundleShortVersionString` is the *old* version) and (b) carries a
+`CFBundleVersion` ≥ the feed's newest `sparkle:version` (often a hand-typed
+`sparkle:version` one off from the real build). Confirm by reading the shipped
+DMG directly:
+
+```bash
+hdiutil attach MyApp-X.Y.Z.dmg -nobrowse -readonly -mountrandom /tmp
+/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' /Volumes/.../MyApp.app/Contents/Info.plist
+/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion'            /Volumes/.../MyApp.app/Contents/Info.plist
+```
+
+Fix the *process*, not just the feed: bump `MARKETING_VERSION` before archiving
+(the `release.sh` consistency gate now hard-fails otherwise), and author the item
+with `appcast-item.sh` so `sparkle:version` is read from the DMG instead of
+typed. A build already in users' hands can only be superseded by a later build
+whose number exceeds it. Full write-up in `versioning.md`.
+
 **"Check for Updates…" says you're up to date, but there's a new version.**
 Sparkle compares `sparkle:version` (an integer = `CFBundleVersion`), not the
 marketing string. Check, in order:

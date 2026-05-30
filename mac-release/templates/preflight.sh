@@ -29,6 +29,7 @@ APP_XCCONFIG_REL="Configuration/App.xcconfig"    # holds MARKETING_VERSION, SU_*
 BUILD_XCCONFIG_REL="Configuration/Build.xcconfig" # holds DEVELOPMENT_TEAM
 PBXPROJ_REL="MyApp.xcodeproj/project.pbxproj"
 APPCAST_REL="website/appcast.xml"                # set to "" if you have no appcast yet
+DOWNLOADS_DIR_REL="website/downloads"            # where published DMGs live (for the consistency gate)
 WEBSITE_INDEX_REL="website/index.html"           # set to "" to skip website gates
 NOTARY_PROFILE="MyApp-notary"
 # Deploy env-var names (see deploy-website.sh). Leave as-is or rename per app.
@@ -90,6 +91,30 @@ warn() {
 }
 
 section() { print ""; print "$1"; }
+
+# Compare two dotted versions (ignoring any -prerelease suffix).
+# Prints 1 if $1 > $2, -1 if $1 < $2, 0 if equal.
+ver_cmp() {
+    local a=${1%%-*} b=${2%%-*}
+    local -a A B
+    A=(${(s:.:)a}); B=(${(s:.:)b})
+    local i x y
+    for i in 1 2 3; do
+        x=${A[i]:-0}; y=${B[i]:-0}
+        (( x > y )) && { print 1; return }
+        (( x < y )) && { print -- -1; return }
+    done
+    print 0
+}
+
+# First (newest) value of an attribute in the appcast. Convention is
+# newest-item-first, so head -1 is the newest release. XML comments are stripped
+# first so placeholder text in an authoring comment (e.g. length="...") can't be
+# mistaken for a real attribute.
+appcast_newest_attr() {
+    perl -0777 -pe 's/<!--.*?-->//gs' "$APPCAST" 2>/dev/null \
+        | grep -oE "$1=\"[^\"]+\"" | head -1 | sed -E 's/.*="([^"]+)"/\1/'
+}
 
 # --- Build gates -------------------------------------------------------------
 
@@ -171,6 +196,75 @@ if [[ -n "$APPCAST" && -f "$APPCAST" ]]; then
     fi
 elif [[ -n "$APPCAST" ]]; then
     warn "$APPCAST_REL not found — skipping build-number collision check"
+fi
+
+# Marketing-version bump gate. The most common release mistake is forgetting to
+# bump MARKETING_VERSION, so the new build ships with the same marketing version
+# as the last release. Sparkle compares CFBundleVersion for the update decision
+# but prints the marketing strings in its dialog — a stale MARKETING_VERSION
+# makes a user on the new build see "you're up to date, running <old version>".
+# MARKETING_VERSION must be strictly greater than the newest version already
+# advertised in the appcast. See references/versioning.md.
+if [[ -n "$APPCAST" && -f "$APPCAST" && -n "$VERSION" ]]; then
+    NEWEST_SHORT=$(appcast_newest_attr 'sparkle:shortVersionString')
+    if [[ -z "$NEWEST_SHORT" ]]; then
+        pass "appcast has no prior shortVersionString (first release)"
+    else
+        case "$(ver_cmp "$VERSION" "$NEWEST_SHORT")" in
+            1)  pass "MARKETING_VERSION $VERSION > newest released $NEWEST_SHORT" ;;
+            0)  fail "MARKETING_VERSION ($VERSION) equals the newest released version — bump it before release" ;;
+            *)  fail "MARKETING_VERSION ($VERSION) is older than the newest released $NEWEST_SHORT" ;;
+        esac
+    fi
+fi
+
+# Appcast <-> DMG consistency gate. The advertised attributes must match the
+# artifact they point at. The newest item's DMG, if present locally, is mounted
+# read-only and its real version fields + byte length are compared to the
+# sparkle:* attributes — a mismatch is exactly the drift that ships a broken
+# update feed. Warn-level: already-published items are historical, and the hard
+# guarantee lives in release.sh + appcast-item.sh. --strict promotes to failure.
+if [[ -n "$APPCAST" && -f "$APPCAST" ]]; then
+    A_SHORT=$(appcast_newest_attr 'sparkle:shortVersionString')
+    A_BUILD=$(appcast_newest_attr 'sparkle:version')
+    A_LENGTH=$(appcast_newest_attr 'length')
+    DMG_LOCAL="$REPO_ROOT/$DOWNLOADS_DIR_REL/$APP_NAME-$A_SHORT.dmg"
+    if [[ -z "$A_SHORT" ]]; then
+        pass "appcast has no items to cross-check"
+    elif [[ ! -f "$DMG_LOCAL" ]]; then
+        warn "newest appcast item is $A_SHORT but $DOWNLOADS_DIR_REL/$APP_NAME-$A_SHORT.dmg is absent — cannot cross-check"
+    else
+        BYTES=$(stat -f '%z' "$DMG_LOCAL")
+        if [[ "$BYTES" == "$A_LENGTH" ]]; then
+            pass "appcast length matches $APP_NAME-$A_SHORT.dmg ($BYTES bytes)"
+        else
+            warn "appcast length ($A_LENGTH) != $APP_NAME-$A_SHORT.dmg byte size ($BYTES)"
+        fi
+        MP=$(hdiutil attach "$DMG_LOCAL" -nobrowse -readonly -mountrandom /tmp 2>/dev/null \
+            | awk '/\/tmp\// {print $NF; exit}')
+        if [[ -n "$MP" && -d "$MP" ]]; then
+            APP_IN=$(print -r -- "$MP"/*.app(N) | head -1)
+            if [[ -n "$APP_IN" ]]; then
+                D_SHORT=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_IN/Contents/Info.plist" 2>/dev/null)
+                D_BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_IN/Contents/Info.plist" 2>/dev/null)
+                if [[ "$D_SHORT" == "$A_SHORT" ]]; then
+                    pass "DMG CFBundleShortVersionString matches appcast ($A_SHORT)"
+                else
+                    warn "DMG CFBundleShortVersionString ($D_SHORT) != appcast sparkle:shortVersionString ($A_SHORT)"
+                fi
+                if [[ "$D_BUILD" == "$A_BUILD" ]]; then
+                    pass "DMG CFBundleVersion matches appcast ($A_BUILD)"
+                else
+                    warn "DMG CFBundleVersion ($D_BUILD) != appcast sparkle:version ($A_BUILD)"
+                fi
+            else
+                warn "no .app inside $APP_NAME-$A_SHORT.dmg — cannot verify versions"
+            fi
+            hdiutil detach "$MP" -quiet 2>/dev/null || true
+        else
+            warn "could not mount $APP_NAME-$A_SHORT.dmg to cross-check versions"
+        fi
+    fi
 fi
 
 # --- Sparkle gates -----------------------------------------------------------

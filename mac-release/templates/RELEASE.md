@@ -80,13 +80,19 @@ with the scripts in this directory.
 6. **Update the appcast and changelog**
 
    - Copy the DMG to `website/downloads/<APP>-X.Y.Z.dmg`.
-   - Sign it: run Sparkle's `sign_update` over the DMG (see
-     `references/appcast.md`) to get `sparkle:edSignature` and `length`.
-   - Prepend an `<item>` to `website/appcast.xml`: use the **YYYYMMDD build
-     number printed by `release.sh`** for `sparkle:version`, the marketing
-     version for `sparkle:shortVersionString`, plus the signature, length, and
-     enclosure URL.
-   - Stamp your changelog with the user-visible changes.
+   - Generate the `<item>` from the DMG — do **not** hand-type version
+     attributes:
+
+     ```bash
+     scripts/appcast-item.sh dist/<APP>-<sha>.dmg
+     ```
+
+     (`release.sh` already printed this block at the end of step 3.) It derives
+     `sparkle:version`, `sparkle:shortVersionString`, `length`, and
+     `sparkle:edSignature` from the artifact itself, so the feed can't drift from
+     the DMG. Prepend it (newest-first) to `website/appcast.xml`.
+   - Fill in the `<description>` release notes and stamp your changelog with the
+     user-visible changes.
 
 7. **Publish the appcast** (self-hosted)
 

@@ -41,26 +41,41 @@ The fields that must be exactly right:
 - Release notes: either inline `<description>` HTML (CDATA) or a
   `<sparkle:releaseNotesLink>` pointing at a hosted HTML file.
 
-## Signing the DMG
+## Generate the item — don't hand-type it
 
-Compute the signature with Sparkle's `sign_update`, using the **same
-`--account`** you generated the key with (`sparkle.md`):
+**The correct way to author an item is `appcast-item.sh <dmg>`**, not typing the
+attributes. It derives every value from the artifact: it mounts the DMG, reads
+`CFBundleShortVersionString` / `CFBundleVersion` from the bundle inside, computes
+the byte `length`, and runs `sign_update` for the signature. Because nothing is
+typed, the feed cannot drift from the DMG — the exact drift that ships a broken
+"You're up to date" update feed (see `versioning.md`).
 
 ```bash
-<...>/artifacts/sparkle/Sparkle/bin/sign_update \
-    --account MyApp \
-    dist/MyApp-1.0.1.dmg
+scripts/appcast-item.sh dist/MyApp-1.0.1.dmg
 ```
 
-It prints both attributes ready to paste:
+It prints a complete `<item>` ready to paste (newest-first) into `appcast.xml`,
+then reminds you to copy the DMG to your downloads dir and fill in the release
+notes. `release.sh` runs it automatically at the end of every release, so the
+block is already in your terminal scrollback.
 
-```
-sparkle:edSignature="…" length="12345678"
+### What it's doing under the hood
+
+The signature comes from Sparkle's `sign_update`, using the **same `--account`**
+you generated the key with (`sparkle.md`):
+
+```bash
+<...>/artifacts/sparkle/Sparkle/bin/sign_update --account MyApp dist/MyApp-1.0.1.dmg
+# -> sparkle:edSignature="…" length="12345678"
 ```
 
 > Without `--account MyApp`, `sign_update` looks under the default account
 > `ed25519` and fails with **"Signing key not found for account ed25519."** This
 > is the single most common appcast-signing error.
+
+Only fall back to running `sign_update` by hand (and reading the version fields
+with `PlistBuddy`) if `appcast-item.sh` can't locate the signing tool — fix
+`SIGN_UPDATE_CANDIDATES` in its CONFIG block instead.
 
 ## Validate before publishing
 
@@ -73,10 +88,14 @@ their next poll, or immediately via "Check for Updates…".
 
 ## Sanity checklist per release
 
-- [ ] DMG copied to the hosting path the `enclosure url` points at.
-- [ ] `sparkle:version` = the YYYYMMDD printed by `release.sh` (and higher than
-      the previous item).
-- [ ] `sparkle:shortVersionString` = `MARKETING_VERSION`.
-- [ ] `sparkle:edSignature` + `length` = fresh `sign_update` output for *this*
-      DMG (re-sign if you rebuilt).
-- [ ] Item prepended, XML still valid.
+- [ ] Item generated with `appcast-item.sh <dmg>` (not hand-typed).
+- [ ] DMG copied to the hosting path the `enclosure url` points at, named to
+      match (`<APP>-<X.Y.Z>.dmg`).
+- [ ] Item prepended (newest-first), `<description>` release notes filled in.
+- [ ] `xmllint --noout appcast.xml` clean (the preflight checks this too).
+- [ ] Preflight's appcast↔DMG consistency gate passes against the local DMG.
+
+If you ever edit attributes by hand, re-verify: `sparkle:version` must equal the
+DMG's `CFBundleVersion`, `sparkle:shortVersionString` its
+`CFBundleShortVersionString`, and `length` its byte count — `appcast-item.sh`
+guarantees all three, which is why it's the default.
