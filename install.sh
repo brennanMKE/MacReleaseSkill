@@ -7,7 +7,7 @@ set -euo pipefail
 # tool's skills directory (symlink, so edits are live).
 #
 # Usage:
-#   ./install.sh                    Install globally for detected tools (Claude Code, Codex)
+#   ./install.sh                    Install globally for detected tools (Claude Code, Codex, OpenCode)
 #   ./install.sh --project DIR      Also install into DIR/.cursor/skills (covers Cursor)
 #   ./install.sh -y                 Don't prompt before replacing
 #   REPO_URL=<git-url> ./install.sh Clone/update into a cache, then link from there
@@ -15,6 +15,7 @@ set -euo pipefail
 # Skills directories:
 #   Claude Code  global ~/.claude/skills    project .claude/skills
 #   Codex CLI    global ~/.codex/skills     project .codex/skills
+#   OpenCode     global ~/.config/opencode/skills
 #   Cursor       (no global dir)            project .cursor/skills
 
 PROJECT_DIR=""
@@ -58,6 +59,10 @@ fi
 if have codex || [ -d "$HOME/.codex" ]; then
   GLOBAL_TARGETS="$GLOBAL_TARGETS $HOME/.codex/skills"
 fi
+OPENCODE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
+if have opencode || [ -d "$OPENCODE_DIR" ]; then
+  GLOBAL_TARGETS="$GLOBAL_TARGETS $OPENCODE_DIR/skills"
+fi
 
 # --- Link one skill folder into one target dir ---
 link_skill() {
@@ -94,7 +99,7 @@ find "$SRC_ROOT" -maxdepth 2 -name SKILL.md -not -path '*/.git/*' -print \
 echo ""
 
 if [ -z "$GLOBAL_TARGETS" ] && [ -z "$PROJECT_DIR" ]; then
-  echo "No supported AI tools detected (Claude Code / Codex)."
+  echo "No supported AI tools detected (Claude Code / Codex / OpenCode)."
   echo "Cursor is project-scoped: re-run with --project /path/to/your/project"
 elif [ -z "$PROJECT_DIR" ]; then
   echo "Cursor skipped (no global dir). Install per project with: --project /path/to/your/project"
